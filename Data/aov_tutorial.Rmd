@@ -1,0 +1,195 @@
+---
+title: "AOV tutorial"
+author: "S. Cook"
+date: "September 26, 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+# Package import
+
+You could do all of this in base-R, but trying to code in R without the tidyverse is like trying to eat dinner without your hands - it's possible, but nobody wants to see that. Load-in packages with the `require()` function.
+
+```{r, message = FALSE, warning = FALSE}
+require(tidyverse)
+```
+
+
+# Data import
+
+We need to get our data into R before we can actually do any work. The `read.csv()` function goes hunting for a `.csv` file with that name and assigns it to the variable `o2_data`. The rest of the stuff inside the `()` just tells the `read.csv()` function that we have headers, and that our file is comma-separated.
+
+```{r}
+o2_data <- read.csv(file = "o2_first_exp.csv", header = T, sep = ",")
+
+n2_data <- read.csv(file = "n2_first_exp.csv", header = T, sep = ",")
+```
+
+Now that we have `o2_data` imported, it will appear as a variable in the Enrivonment pane (upper right). If you click the blue drop-down, it will give you some information about the type of data stored in each column, and if you click directly on `o2_data` it will open a tab showing you the data in table-format.
+
+
+# Data wrangling
+
+Some functions are easier if we combine the data first. The `rbind()` function is from base R, and throws the `n2_data` rows under the `o2_data` rows. We are only able to use this because our data frames had exactly the same headers. The piping function `%>%` is read as *and then I want to do this*. It is incredibly useful - it makes the code more readable, and if you need to perform a bunch of calculations, this is a good way of stringing together complex operations.
+
+```{r}
+gas_combined_wide <- o2_data %>%
+  rbind(n2_data)
+```
+
+It's a good practice to try and keep your datasets "tidy", meaning that *every row is an observation*, and *every column is a variable* of that observation. `TREATMENT` and `VALUE` give the names of the new columns you are creating, and 4:7 gathers those columns into those variables. The previous column names gets thrown into the first name (`TREATMENT`), and the numbers that fall under those columns get thrown into the second name (`CONC`).
+
+```{r}
+gas_combined_long <- gas_combined_wide %>%
+  gather("TREATMENT", "CONC", 4:7)
+```
+
+# Plot it up
+
+Let's pull out n2 values for analysis.
+
+```{r, warning = FALSE}
+n2_long <- gas_combined_long %>%
+  filter(ANALYTE == "n2")
+```
+
+It is usually a good idea to plot the raw data, and histograms are very useful to see how the data are looking (not to mention a good way to catch entry errors). The goal is to get an object called `n2_histo`, so everything after `<-` is what goes into creating `n2_histo`. `ggplot()` initializes the plot, and we can then start throwing layers on the plot (ggplot is a very powerful plotting add-on that lets you build layers on your graph using `geom`s). 
+
+Every geom needs to know where to go to get the data (use the `data =` argument), as well as an aesthetics argument (`aes()`) that needs an x and y value to graph. In the histogram's case, it only needs an x value. The `binwidth` just specifies how large of a window on the x-axis we want to use to count the values. 
+
+```{r}
+n2_histo <- ggplot() +
+  geom_histogram(data = n2_long,
+                 aes(x = CONC, fill = TREATMENT),
+                 binwidth = 1)
+
+n2_histo
+```
+
+Dot-plots (called using `geom_point()`) allow you to look at the actual data points organized by treatment and sampling time. There are numerous ways to display this data, but below sticks treatment on the x-axis and the concentration of n2 on the y-axis, and then uses `facet_wrap()` to divide all the plots by sampling time. You could easily swap `TREATMENT` and `TIME` to emphasize different aspects about these relationships.
+
+```{r}
+n2_plot <- ggplot() +
+  geom_point(data = n2_long,
+           aes(x = TREATMENT, y = CONC)) +
+  facet_wrap(~TIME)
+
+n2_plot
+```
+
+
+# 2-way analysis of variance
+
+Also called the "one of these things is unlike the other" test. The data is already `tidy`, so we can immediately analyze the data using a 2-factor analysis of variance using the `aov()` function. It needs to know where to look for the data in a dataframe (`data =`). Read the `~` sign as "a function of". We want to model the n2 concentrations *as a function* of `TREATMENT` and `TIME`. 
+
+The `as.factor()` function makes sure that `TREATMENT` and `TIME` are both treated as factors.
+
+```{r}
+n2_anova_1 <- aov(data = n2_long,
+                  CONC ~ as.factor(TREATMENT) + as.factor(TIME))
+
+summary(n2_anova_1)
+```
+
+Above we used a `+` sign to simply test for the effects of `TREATMENT` and `TIME`, which was a good first step, but does not account for any interactive effects between `TREATMENT` and `TIME`. We tell the model we want to test for that by switching the `+` to a `*`.
+
+```{r}
+n2_anova_2 <- aov(data = n2_long,
+                  CONC ~ as.factor(TREATMENT)*as.factor(TIME))
+
+summary(n2_anova_2)
+```
+
+Go google the methodological assumptions of an ANOVA. The best way to test that those assumptions are valid are the plots below. One of the assumptions is that the residuals of the model (may need to google residuals here too) are normally distributed (i.e. should look roughly like a bell curve if you squint your eyes). Use the `$` notation to pull out columns in a dataframe.
+
+The `resid_plot` is a histrogram of the residuals, and they do not look all that bad.
+
+Another important assumption is *homoscedasticity of error variances*, which is just an awful way of saying there shouldn't be any noticeable trends in the residuals if we were to plot them against the observed values (the values we plugged into `aov()` to create the model).
+
+The `scatter_plot` is an example of this kind of diagnostic plot, and it doesn't look fantastic but nothing to worry about (in a perfect world would look like a starry sky - completely random). 
+
+```{r}
+combo <- n2_long %>%
+  cbind(n2_anova_2$residuals)
+
+resid_plot <- ggplot() +
+  geom_histogram(data = combo,
+                 aes(x = n2_anova_2$residuals))
+
+resid_plot
+
+
+scatter_plot <- ggplot() +
+  geom_point(data = combo,
+             aes(x = CONC, y = n2_anova_2$residuals, colour = TREATMENT)) +
+  ylab("Residuals") +
+  xlab("N2 concentration")
+
+scatter_plot
+```
+
+
+# Tukey post-hoc test
+
+Also called the "lets figure out which one of these things is unlike the others" test. If you set up the `aov()` correctly, you should be able to plug it directly into `TukeyHSD()`, which will perform all contrasts between the two predictor variables. Notice that I have *commented out* the actual call to `n2_tukey` with a `#` sign. That is a *comment marker* that tells R I don't want to run that part thank you very much, and it is useful for blocking output or writing a quick note to yourself about what code does.
+
+```{r}
+n2_tukey <- TukeyHSD(n2_anova_2)
+
+#n2_tukey
+```
+
+
+If you remove the `#` and look at the output, you'll notice that we get a very large number of comparisons. If you wanted to clean this up a bit, you could `filter()` those p-values by a level of `alpha` that you set before you started the analysis. Walk through the code below and run each part bit by bit. Remember, each `%>%` operator just reads as *and then I want to do this*, so a good way to see what each part is doing is to run each bit step-by-step.
+
+```{r}
+n2_contrasts <- as.data.frame(n2_tukey$`as.factor(TREATMENT):as.factor(TIME)`) %>%
+  rownames_to_column() %>%
+  filter(`p adj` < 0.05)
+
+n2_contrasts
+```
+
+# Summarizing data
+
+There are many ways you could visually display the information in `n2_long` (get creative and play around). Below is a way to calculate the group means and standard errors using the `tidyverse`. 
+
+```{r}
+n2_summary <- n2_long %>%
+  group_by(TIME, TREATMENT) %>%
+  summarise(N2_MEAN = mean(CONC),
+            N2_SE = sd(CONC)/sqrt(n()))
+```
+
+`ggplot2` offers the ability to completely customize your plots to get them exactly how you want them to look. The code below is just a small example of the different things you can tweak. If you want to know more about some of those commands, look them up by clicking on the R console window (it might be hidden below), and type `?facet_wrap()`. If you throw a `?` in front of any R function or command, it will pull up a help menu entry on that particular item.
+
+```{r}
+n2_plot_treatment <- ggplot() +
+  geom_col(data = n2_summary,
+           aes(x = TREATMENT, y = N2_MEAN),
+           position = "dodge") +
+  facet_wrap(~TIME) +
+  coord_cartesian(ylim = c(500, 625)) +
+  geom_errorbar(data = n2_summary,
+                aes(x = TREATMENT,
+                    ymin = N2_MEAN - N2_SE,
+                    ymax = N2_MEAN + N2_SE),
+                width = 0.25) +
+  theme_bw() +
+  ylab("N2 production") +
+  xlab("Treatment")
+
+n2_plot_treatment
+```
+
+There are multiple ways to save plots as whatever file type you wish. `.pdf`s ideal for publication, and high-resolution `.png`s are great for powerpoint presentations. You can even save at retina-display resolution using `dpi = "retina"` (for all you weird Mac people out there). 
+
+```{r}
+#ggsave(n2_plot_treatment, file = "n2_plot_treatment.pdf", device = pdf, height = 6, width = 6)
+```
+
+
+
+
+
