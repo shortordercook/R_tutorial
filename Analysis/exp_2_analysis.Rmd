@@ -1,0 +1,157 @@
+---
+title: "BSR Exp 2 Analysis"
+author: "S.C. Cook"
+date: "October 25, 2018"
+output: pdf_document
+---
+
+# Package import
+
+
+```{r, message = FALSE, warning = FALSE}
+require(tidyverse)
+require(lme4)
+```
+
+
+# Data import
+
+
+```{r}
+master <- read.csv(file = "../Data/bsr_exp_2.csv", header = T, sep = ",") %>%
+  filter(sediment_source != "none") # ask TS and JD about this
+```
+
+
+# Get in tidy format
+
+```{r}
+master_long <- master %>%
+  gather("analyte", "concentration", 5:6)
+```
+
+```{r}
+n2_long <- master_long %>%
+  filter(analyte == "N2")
+
+o2_long <- master_long %>%
+  filter(analyte == "O2")
+```
+
+
+# Exploratory plotting
+
+```{r}
+n2_histo <- ggplot() +
+  geom_histogram(data = n2_long,
+                 aes(x = concentration, fill = sediment_source),
+                 binwidth = 1) +
+  theme_classic()
+
+n2_histo
+```
+
+```{r}
+o2_histo <- ggplot() +
+  geom_histogram(data = o2_long,
+                 aes(x = concentration, fill = sediment_source),
+                 binwidth = 2) +
+  theme_classic()
+
+o2_histo
+```
+```{r}
+master_summary <- master_long %>%
+  group_by(sediment_source, turbidity, day, analyte) %>%
+  summarise(mean = mean(concentration),
+            se = sd(concentration)/sqrt(n()))
+```
+
+```{r}
+n2_summary <- master_summary %>%
+  filter(analyte == "N2")
+
+variance <- ggplot() +
+  geom_point(data = n2_summary,
+             aes(x = mean, y = se^2))
+
+variance
+
+o2_summary <- master_summary %>%
+  filter(analyte == "O2")
+
+variance2 <- ggplot() +
+  geom_point(data = o2_summary,
+             aes(x = mean, y = se^2))
+
+variance2
+
+
+
+
+n2_raw_data <- ggplot() +
+  geom_point(data = master_long %>%
+               filter(analyte == "N2"),
+             aes(x = turbidity, y = concentration, colour = sediment_source),
+             position = position_dodge(width = 5)) +
+  facet_wrap(~day)
+
+n2_raw_data
+
+o2_raw_data <- ggplot() +
+  geom_point(data = master_long %>%
+               filter(analyte == "O2"),
+             aes(x = turbidity, y = concentration, colour = sediment_source),
+             position = position_dodge(width = 5)) +
+  facet_wrap(~day)
+
+o2_raw_data
+```
+
+
+
+
+
+# ANOVA
+
+```{r}
+n2_anova_1 <- aov(data = n2_long,
+                  concentration ~ as.factor(sediment_source) + as.factor(turbidity) + as.factor(day))
+
+summary(n2_anova_1)
+plot(n2_anova_1)
+```
+
+```{r}
+o2_anova_1 <- aov(data = o2_long,
+                  concentration ~ as.factor(sediment_source) + as.factor(turbidity) + as.factor(day))
+
+summary(o2_anova_1)
+plot(o2_anova_1)
+```
+
+# GLM
+
+```{r}
+o2_glm <- glm(data = o2_long,
+              concentration ~ as.factor(sediment_source) + (1|turbidity) + day,
+              family = gaussian(link = "identity"))
+
+summary(o2_glm)
+plot(o2_glm)
+```
+
+
+# Mixed-effect model
+
+```{r}
+o2_lme <- glmer(data = o2_long,
+                concentration ~ as.factor(sediment_source) + turbidity + day + (1|bottle_no),
+                family = Gamma(link = "identity"))
+
+summary(o2_lme)
+plot(o2_lme)
+```
+
+
+
