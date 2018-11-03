@@ -3,6 +3,8 @@ title: "BSR Exp 2 Analysis"
 author: "S.C. Cook"
 date: "October 25, 2018"
 output: pdf_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 # Package import
@@ -60,6 +62,7 @@ o2_histo <- ggplot() +
 
 o2_histo
 ```
+
 ```{r}
 master_summary <- master_long %>%
   group_by(sediment_source, turbidity, day, analyte) %>%
@@ -109,14 +112,21 @@ o2_raw_data
 ```
 
 
+```{r}
+plot2 <- ggplot() +
+  geom_point(data = master_long %>%
+               filter(analyte == "O2"),
+             aes(x = turbidity, y = concentration, colour = sediment_source, size = day))
 
+plot2
+```
 
 
 # ANOVA
 
 ```{r}
 n2_anova_1 <- aov(data = n2_long,
-                  concentration ~ as.factor(sediment_source) + as.factor(turbidity) + as.factor(day))
+                  concentration ~ as.factor(sediment_source)*as.factor(turbidity) + as.factor(day))
 
 summary(n2_anova_1)
 plot(n2_anova_1)
@@ -134,12 +144,18 @@ plot(o2_anova_1)
 
 ```{r}
 o2_glm <- glm(data = o2_long,
-              concentration ~ as.factor(sediment_source) + (1|turbidity) + day,
-              family = gaussian(link = "identity"))
+              concentration ~ as.factor(sediment_source) + turbidity*day,
+              family = gaussian(link = "log"))
 
 summary(o2_glm)
 plot(o2_glm)
 ```
+
+
+
+
+
+
 
 
 # Mixed-effect model
