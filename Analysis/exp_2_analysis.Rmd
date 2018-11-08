@@ -105,35 +105,7 @@ o2_raw_data
 ```
 
 
-```{r}
-plot2 <- ggplot() +
-  geom_point(data = master_long %>%
-               filter(analyte == "O2"),
-             aes(x = turbidity, y = concentration, colour = sediment_source, size = day))
-
-<<<<<<< HEAD
 # ANOVA
-
-```{r}
-o2_anova_1 <- aov(data = o2_long %>%
-                    filter(TREATMENT != "C"),
-                  CONC ~ as.factor(TREATMENT) + as.factor(TURBIDITY) + as.factor(TIME))
-=======
-plot2
-```
-
-
-# ANOVA
-
-```{r}
-n2_anova_1 <- aov(data = n2_long,
-                  concentration ~ as.factor(sediment_source)*as.factor(turbidity) + as.factor(day))
->>>>>>> 893a688b5ebf0b2a4d98d6032defc4c51acd4592
-
-summary(o2_anova_1)
-plot(o2_anova_1)
-TukeyHSD(o2_anova_1)
-```
 
 ```{r}
 o2_anova_1 <- aov(data = o2_long %>%
@@ -150,38 +122,20 @@ TukeyHSD(o2_anova_1)
 Only additive effects.
 
 ```{r}
-<<<<<<< HEAD
 o2_glm <- glm(data = o2_long %>%
                     filter(TREATMENT != "C"),
               CONC ~ as.factor(TREATMENT) + TURBIDITY + TIME,
               family = gaussian(link = "identity"))
-=======
-o2_glm <- glm(data = o2_long,
-              concentration ~ as.factor(sediment_source) + turbidity*day,
-              family = gaussian(link = "log"))
->>>>>>> 893a688b5ebf0b2a4d98d6032defc4c51acd4592
 
 summary(o2_glm)
 plot(o2_glm)
 ```
 
-<<<<<<< HEAD
-=======
-
-
-
-
-
-
-
-# Mixed-effect model
-
->>>>>>> 893a688b5ebf0b2a4d98d6032defc4c51acd4592
 ```{r}
 o2_glm_2 <- glm(data = o2_long %>%
                     filter(TREATMENT != "C"),
               CONC ~ as.factor(TREATMENT)*TURBIDITY*TIME,
-              family = gaussian(link = "identity"))
+              family = gaussian(link = "log"))
 
 summary(o2_glm_2)
 plot(o2_glm_2)
