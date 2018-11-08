@@ -10,7 +10,6 @@ output: pdf_document
 
 ```{r, message = FALSE, warning = FALSE}
 require(tidyverse)
-require(lme4)
 ```
 
 
@@ -18,24 +17,18 @@ require(lme4)
 
 
 ```{r}
-master <- read.csv(file = "../Data/bsr_exp_2.csv", header = T, sep = ",") %>%
-  filter(sediment_source != "none") # ask TS and JD about this
+master <- read.csv(file = "../Data/BSR_exp_2.csv", header = T, sep = ",")
 ```
 
 
 # Get in tidy format
 
 ```{r}
-master_long <- master %>%
-  gather("analyte", "concentration", 5:6)
-```
+n2_long <- master %>%
+  filter(ANALYTE == "N2")
 
-```{r}
-n2_long <- master_long %>%
-  filter(analyte == "N2")
-
-o2_long <- master_long %>%
-  filter(analyte == "O2")
+o2_long <- master %>%
+  filter(ANALYTE == "O2")
 ```
 
 
@@ -44,7 +37,7 @@ o2_long <- master_long %>%
 ```{r}
 n2_histo <- ggplot() +
   geom_histogram(data = n2_long,
-                 aes(x = concentration, fill = sediment_source),
+                 aes(x = CONC, fill = TREATMENT),
                  binwidth = 1) +
   theme_classic()
 
@@ -54,22 +47,22 @@ n2_histo
 ```{r}
 o2_histo <- ggplot() +
   geom_histogram(data = o2_long,
-                 aes(x = concentration, fill = sediment_source),
+                 aes(x = CONC, fill = TREATMENT),
                  binwidth = 2) +
   theme_classic()
 
 o2_histo
 ```
 ```{r}
-master_summary <- master_long %>%
-  group_by(sediment_source, turbidity, day, analyte) %>%
-  summarise(mean = mean(concentration),
-            se = sd(concentration)/sqrt(n()))
+master_summary <- master %>%
+  group_by(TREATMENT, TURBIDITY, TIME, ANALYTE) %>%
+  summarise(mean = mean(CONC),
+            se = sd(CONC)/sqrt(n()))
 ```
 
 ```{r}
 n2_summary <- master_summary %>%
-  filter(analyte == "N2")
+  filter(ANALYTE == "N2")
 
 variance <- ggplot() +
   geom_point(data = n2_summary,
@@ -78,7 +71,7 @@ variance <- ggplot() +
 variance
 
 o2_summary <- master_summary %>%
-  filter(analyte == "O2")
+  filter(ANALYTE == "O2")
 
 variance2 <- ggplot() +
   geom_point(data = o2_summary,
@@ -90,68 +83,70 @@ variance2
 
 
 n2_raw_data <- ggplot() +
-  geom_point(data = master_long %>%
-               filter(analyte == "N2"),
-             aes(x = turbidity, y = concentration, colour = sediment_source),
+  geom_point(data = master %>%
+               filter(ANALYTE == "N2"),
+             aes(x = TURBIDITY, y = CONC, colour = TREATMENT),
              position = position_dodge(width = 5)) +
-  facet_wrap(~day)
+  facet_wrap(~TIME)
 
 n2_raw_data
 
 o2_raw_data <- ggplot() +
-  geom_point(data = master_long %>%
-               filter(analyte == "O2"),
-             aes(x = turbidity, y = concentration, colour = sediment_source),
+  geom_point(data = master %>%
+               filter(ANALYTE == "O2"),
+             aes(x = TURBIDITY, y = CONC, colour = TREATMENT),
              position = position_dodge(width = 5)) +
-  facet_wrap(~day)
+  facet_wrap(~TIME)
 
 o2_raw_data
 ```
 
 
 
-
-
 # ANOVA
 
 ```{r}
-n2_anova_1 <- aov(data = n2_long,
-                  concentration ~ as.factor(sediment_source) + as.factor(turbidity) + as.factor(day))
-
-summary(n2_anova_1)
-plot(n2_anova_1)
-```
-
-```{r}
-o2_anova_1 <- aov(data = o2_long,
-                  concentration ~ as.factor(sediment_source) + as.factor(turbidity) + as.factor(day))
+o2_anova_1 <- aov(data = o2_long %>%
+                    filter(TREATMENT != "C"),
+                  CONC ~ as.factor(TREATMENT) + as.factor(TURBIDITY) + as.factor(TIME))
 
 summary(o2_anova_1)
 plot(o2_anova_1)
+TukeyHSD(o2_anova_1)
+```
+
+```{r}
+o2_anova_1 <- aov(data = o2_long %>%
+                    filter(TREATMENT != "C"),
+                  CONC ~ as.factor(TREATMENT)*as.factor(TURBIDITY)*as.factor(TIME))
+
+summary(o2_anova_1)
+plot(o2_anova_1)
+TukeyHSD(o2_anova_1)
 ```
 
 # GLM
 
+Only additive effects.
+
 ```{r}
-o2_glm <- glm(data = o2_long,
-              concentration ~ as.factor(sediment_source) + (1|turbidity) + day,
+o2_glm <- glm(data = o2_long %>%
+                    filter(TREATMENT != "C"),
+              CONC ~ as.factor(TREATMENT) + TURBIDITY + TIME,
               family = gaussian(link = "identity"))
 
 summary(o2_glm)
 plot(o2_glm)
 ```
 
-
-# Mixed-effect model
-
 ```{r}
-o2_lme <- glmer(data = o2_long,
-                concentration ~ as.factor(sediment_source) + turbidity + day + (1|bottle_no),
-                family = Gamma(link = "identity"))
+o2_glm_2 <- glm(data = o2_long %>%
+                    filter(TREATMENT != "C"),
+              CONC ~ as.factor(TREATMENT)*TURBIDITY*TIME,
+              family = gaussian(link = "identity"))
 
-summary(o2_lme)
-plot(o2_lme)
+summary(o2_glm_2)
+plot(o2_glm_2)
 ```
-
 
 
